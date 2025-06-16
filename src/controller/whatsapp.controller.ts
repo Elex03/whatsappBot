@@ -10,7 +10,6 @@ export async function sendMessage(req: Request, res: Response) {
     }
 
     try {
-        // Envías el mensaje con la respuesta 'reply'
         const result = await sendTextMessage(phone, reply);
         return res.json(result);
     } catch (error: any) {
