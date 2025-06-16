@@ -1,9 +1,5 @@
 import axios from "axios";
-
-// Define aquí directamente tus credenciales
-const API_BASE = "https://graph.facebook.com/v18.0";
-const API_TOKEN = "EAAOZBUCrqLhQBO9DCgvSfXZCHWoloxOd5DWQONWMZCZCXP7hwG8UazwNURTi5VsU7Kqs6BgtZCnkWf2zjOUzRToDLhZBcEh8ZBpC9WYwHmYY16NAoqdwkkvPHV8Y5YH4SB2CdcdiKkumQK36b8VtH96LvhhyVHbNZACQLhJtF9oqs5hj6vHneT2NN9z7myupYyADqZBwmGEi1iLWyiQVSzrmnQSIOoZA9CWDOTTiYZD";
-const PHONE_ID = "727605997092548";
+import { API_BASE, API_TOKEN, PHONE_ID } from "../config/server.config";
 
 export async function sendTextMessage(to: string, text: string) {
   try {

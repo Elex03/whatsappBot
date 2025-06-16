@@ -35,7 +35,6 @@ export const postWebHook = async (req: Request, res: Response) => {
 
     let reply = "";
 
-    // Si el mensaje es un saludo o vacío, mostramos el menú
     if (
       receivedText.toLowerCase() === "hola" ||
       receivedText.toLowerCase() === "menu" ||
