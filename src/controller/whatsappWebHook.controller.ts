@@ -1,5 +1,11 @@
+import axios from "axios";
 import { Request, Response } from "express";
+
 import { sendTextMessage } from "../services/whatsapp.service";
+import { API_TOKEN, PHONE_ID } from "../config/server.config";
+import { getMedicinePerCoincidence } from "../api/services/getRequest";
+
+const userStates: Record<string, { esperandoNombre: boolean }> = {};
 
 export const getWebhook = (req: Request, res: Response) => {
   const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "tu_token_aqui";
@@ -16,7 +22,53 @@ export const getWebhook = (req: Request, res: Response) => {
   }
 };
 
-
+const sendInteractiveMessage = async (to: string) => {
+  await axios.post(
+    `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
+    {
+      messaging_product: "whatsapp",
+      to,
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: {
+          text: "¡Hola! Por favor elige una opción:",
+        },
+        action: {
+          buttons: [
+            {
+              type: "reply",
+              reply: {
+                id: "consultar_disponibilidad",
+                title: "Información",
+              },
+            },
+            {
+              type: "reply",
+              reply: {
+                id: "soporte",
+                title: "Soporte",
+              },
+            },
+            {
+              type: "reply",
+              reply: {
+                id: "horarios",
+                title: "Horarios",
+              },
+            },
+          ],
+        },
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+};
 export const postWebHook = async (req: Request, res: Response) => {
   try {
     const entry = req.body.entry?.[0];
@@ -29,35 +81,89 @@ export const postWebHook = async (req: Request, res: Response) => {
 
     const message = messages[0];
     const from = message.from;
-    const receivedText = message.text?.body.trim();
+    const buttonReplyId = message?.interactive?.button_reply?.id;
+    const receivedText = message?.text?.body?.trim().toLowerCase();
 
-    console.log(`Mensaje recibido de ${from}: ${receivedText}`);
+    console.log(
+      `Mensaje recibido de ${from}: ${receivedText || buttonReplyId}`
+    );
 
-    let reply = "";
-
-    if (
-      receivedText.toLowerCase() === "hola" ||
-      receivedText.toLowerCase() === "menu" ||
-      receivedText === ""
-    ) {
-      reply =
-        "¡Hola! Por favor elige una opción:\n1️⃣ Información\n2️⃣ Soporte\n3️⃣ Horarios";
-    } else if (receivedText === "1") {
-      reply = "Has seleccionado Información. ¿En qué te puedo ayudar específicamente?";
-    } else if (receivedText === "2") {
-      reply = "Has seleccionado Soporte. Por favor, describe tu problema.";
-    } else if (receivedText === "3") {
-      reply = "Nuestros horarios son de 8am a 5pm, de lunes a viernes.";
-    } else {
-      reply =
-        "No entendí tu mensaje. Por favor, escribe 'menu' para ver las opciones.";
+    // Paso 1: botones principales
+    if (receivedText === "menu") {
+      await sendInteractiveMessage(from); // Menú: disponibilidad / precio
+      res.sendStatus(200);
     }
 
-    await sendTextMessage(from, reply);
+    // Paso 2: flujo según botón presionado
+    if (
+      buttonReplyId === "consultar_disponibilidad" ||
+      receivedText === "info"
+    ) {
+      userStates[from] = { esperandoNombre: true };
+      console.log(userStates[from]?.esperandoNombre);
+      await sendTextMessage(
+        from,
+        "Por favor, indícame el nombre del medicamento que deseas buscar."
+      );
+      res.sendStatus(200);
+    }
+    // Paso 3: si el usuario está en modo "esperandoNombre"
+    if (userStates[from]?.esperandoNombre && receivedText) {
+      const resultados = await getMedicinePerCoincidence(receivedText);
 
+      if (resultados.length > 0) {
+        const lista = resultados
+          .map(
+            (m: any, i: number) =>
+              `${i + 1}. ${m.descripcion} - ${m.precio ?? "Sin precio"}`
+          )
+          .join("\n");
+
+        await sendTextMessage(from, `✅ Medicamentos encontrados:\n${lista}`);
+      } else {
+        await sendTextMessage(
+          from,
+          `❌ No se encontraron medicamentos que coincidan con: "${receivedText}"`
+        );
+      }
+      await sendTextMessage(
+        from,
+        "¿Hay algo más que desees realizar? Escribe *menu* para ver las opciones."
+      );
+      delete userStates[from]; // limpia estado
+
+      res.sendStatus(200);
+    }
+
+    // if (buttonReplyId === "consultar_precio" || receivedText === "precio") {
+    //   await sendTextMessage(from, "Por favor, dime el nombre del medicamento para consultar su precio.");
+    //    res.sendStatus(200);
+    // }
+
+    // // Paso 3: búsqueda por coincidencia
+    // if (receivedText && receivedText.length > 2) {
+    //   const lista = await getMedicinePerCoincidence(receivedText); // devuelve lista o []
+
+    //   if (lista.length > 0) {
+    //     // const lista = coincidencias
+    //     //   .map((m: any, i: number) => `${i + 1}. ${m.nombre} - ${m.precio ?? 'Sin precio'}`)
+    //     //   .join("\n");
+
+    //     await sendTextMessage(from, `✅ Medicamentos encontrados:\n${lista}`);
+    //   } else {
+    //     await sendTextMessage(from, `❌ No se encontraron medicamentos que coincidan con: "${receivedText}"`);
+    //   }
+
+    //   // Paso 4: preguntar si desea hacer algo más
+    //   await sendTextMessage(from, "¿Hay algo más que desees realizar? Escribe *menu* para ver las opciones.");
+    //   res.sendStatus(200);
+    // }
+
+    // Si no coincide con nada
+    // await sendTextMessage(from, "No entendí tu mensaje. Escribe *menu* para ver las opciones.");
     res.sendStatus(200);
   } catch (error) {
     console.error(error);
     res.sendStatus(500);
   }
-}
+};
