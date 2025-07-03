@@ -88,13 +88,40 @@ export const postWebHook = async (req: Request, res: Response) => {
       `Mensaje recibido de ${from}: ${receivedText || buttonReplyId}`
     );
 
-    // Paso 1: botones principales
     if (receivedText === "menu") {
       await sendInteractiveMessage(from); // Menú: disponibilidad / precio
       res.sendStatus(200);
     }
 
-    // Paso 2: flujo según botón presionado
+    if (receivedText === "hola" || receivedText === "hi") {
+      await sendTextMessage(
+        from,
+        "¡Hola! ¿En qué puedo ayudarte? Escribe *menu* para ver las opciones."
+      );
+
+      await fetch(
+        `https://graph.facebook.com/v19.0/${PHONE_ID}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${API_TOKEN}`, // usa tu token
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: from,
+            type: "document",
+            document: {
+              link: "https://rua.ua.es/dspace/bitstream/10045/4298/1/TEMA%201_INTRODUCCION%20A%20LA%20PSICOLOG%C3%8DA.pdf", // tu URL pública
+              filename: "informacion.pdf", // nombre que verá el usuario
+            },
+          }),
+        }
+      );
+
+      res.sendStatus(200);
+    }
+
     if (
       buttonReplyId === "consultar_disponibilidad" ||
       receivedText === "info"
@@ -107,7 +134,6 @@ export const postWebHook = async (req: Request, res: Response) => {
       );
       res.sendStatus(200);
     }
-    // Paso 3: si el usuario está en modo "esperandoNombre"
     if (userStates[from]?.esperandoNombre && receivedText) {
       const resultados = await getMedicinePerCoincidence(receivedText);
 
