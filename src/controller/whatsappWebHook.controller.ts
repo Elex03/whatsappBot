@@ -91,6 +91,7 @@ export const postWebHook = async (req: Request, res: Response) => {
     if (receivedText === "menu") {
       await sendInteractiveMessage(from); // Menú: disponibilidad / precio
       res.sendStatus(200);
+      return;
     }
 
     if (receivedText === "hola" || receivedText === "hi") {
@@ -120,6 +121,7 @@ export const postWebHook = async (req: Request, res: Response) => {
       );
 
       res.sendStatus(200);
+      return;
     }
 
     if (
@@ -133,6 +135,7 @@ export const postWebHook = async (req: Request, res: Response) => {
         "Por favor, indícame el nombre del medicamento que deseas buscar."
       );
       res.sendStatus(200);
+      return;
     }
     if (userStates[from]?.esperandoNombre && receivedText) {
       const resultados = await getMedicinePerCoincidence(receivedText);
@@ -159,6 +162,7 @@ export const postWebHook = async (req: Request, res: Response) => {
       delete userStates[from]; // limpia estado
 
       res.sendStatus(200);
+      return
     }
 
     // if (buttonReplyId === "consultar_precio" || receivedText === "precio") {
