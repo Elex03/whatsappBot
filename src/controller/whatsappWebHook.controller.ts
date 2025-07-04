@@ -5,6 +5,10 @@ import { sendTextMessage } from "../services/whatsapp.service";
 import { API_TOKEN, PHONE_ID } from "../config/server.config";
 import { getMedicinePerCoincidence } from "../api/services/getRequest";
 
+import path from 'path'
+import fs from 'fs'
+
+
 const userStates: Record<string, { esperandoNombre: boolean }> = {};
 
 export const getWebhook = (req: Request, res: Response) => {
@@ -47,14 +51,14 @@ const sendInteractiveMessage = async (to: string) => {
               type: "reply",
               reply: {
                 id: "soporte",
-                title: "Soporte",
+                title: "Reportes",
               },
             },
             {
               type: "reply",
               reply: {
                 id: "horarios",
-                title: "Horarios",
+                title: "Consultas",
               },
             },
           ],
@@ -74,6 +78,7 @@ export const postWebHook = async (req: Request, res: Response) => {
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
     const messages = changes?.value?.messages;
+    let response = "";
     if (!messages) {
       res.sendStatus(200);
       return;
@@ -94,18 +99,23 @@ export const postWebHook = async (req: Request, res: Response) => {
       return;
     }
 
-    if (receivedText === "hola" || receivedText === "hi") {
+    if (receivedText === "reportes") {
       await sendTextMessage(
         from,
-        "¡Hola! ¿En qué puedo ayudarte? Escribe *menu* para ver las opciones."
+        "¡Hola! Aca podras visualizar las ventas del dia de hoy."
       );
 
-      await fetch(
-        `https://graph.facebook.com/v19.0/${PHONE_ID}/messages`,
-        {
+      try {
+        const response = await fetch(
+          `http://localhost:4000/apiFarmaNova/services/report`
+        );
+        const data = await response.json();
+
+        const reportUrl = `http://localhost:4000/apiFarmaNova/services/report/view/1751650468070_reporte_ventas.pdf`; 
+        await fetch(`https://graph.facebook.com/v19.0/${PHONE_ID}/messages`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${API_TOKEN}`, // usa tu token
+            Authorization: `Bearer ${API_TOKEN}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -113,14 +123,22 @@ export const postWebHook = async (req: Request, res: Response) => {
             to: from,
             type: "document",
             document: {
-              link: "https://rua.ua.es/dspace/bitstream/10045/4298/1/TEMA%201_INTRODUCCION%20A%20LA%20PSICOLOG%C3%8DA.pdf", // tu URL pública
-              filename: "informacion.pdf", // nombre que verá el usuario
+              link: reportUrl, 
+              filename: "ReporteDeVentas.pdf",
             },
           }),
-        }
-      );
+        });
 
-      res.sendStatus(200);
+        res.sendStatus(200);
+      } catch (error) {
+        console.error("❌ Error al enviar el reporte:", error);
+        await sendTextMessage(
+          from,
+          "⚠️ Ocurrió un error al generar o enviar el reporte."
+        );
+        res.sendStatus(500);
+      }
+
       return;
     }
 
@@ -162,7 +180,7 @@ export const postWebHook = async (req: Request, res: Response) => {
       delete userStates[from]; // limpia estado
 
       res.sendStatus(200);
-      return
+      return;
     }
 
     // if (buttonReplyId === "consultar_precio" || receivedText === "precio") {
@@ -197,3 +215,4 @@ export const postWebHook = async (req: Request, res: Response) => {
     res.sendStatus(500);
   }
 };
+
